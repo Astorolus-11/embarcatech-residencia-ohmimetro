@@ -1,3 +1,17 @@
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.1.1)
+set(toolchainVersion 14_2_Rel1)
+set(picotoolVersion 2.1.1)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+# ====================================================================================
 # Generated Cmake Pico project file
 
 cmake_minimum_required(VERSION 3.13)
@@ -22,7 +36,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(embarcatech-residencia-ohmimetro embarcatech-residencia-ohmimetro.c )
+add_executable(embarcatech-residencia-ohmimetro embarcatech-residencia-ohmimetro.c ssd1306.c)
 
 pico_set_program_name(embarcatech-residencia-ohmimetro "embarcatech-residencia-ohmimetro")
 pico_set_program_version(embarcatech-residencia-ohmimetro "0.1")
@@ -33,6 +47,10 @@ pico_enable_stdio_usb(embarcatech-residencia-ohmimetro 1)
 
 # Add the standard library to the build
 target_link_libraries(embarcatech-residencia-ohmimetro
+        hardware_adc
+        hardware_i2c
+        hardware_pio
+        hardware_clocks
         pico_stdlib)
 
 # Add the standard include files to the build
