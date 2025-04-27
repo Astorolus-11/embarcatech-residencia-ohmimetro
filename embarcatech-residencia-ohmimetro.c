@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "hardware/adc.h"
 #include "hardware/i2c.h"
+#include <math.h>
 #include "ssd1306.h"
 #include "font.h"
 #include "pico/bootrom.h"
@@ -15,17 +16,24 @@
 const uint SDA = 14, SCL = 15, endereco = 0x3C;
 const uint adc_omh = 28, botao_a = 5, pin_matriz = 7;
 int r_conhecido = 10000;
-float r_x = 0.0, resolucao = 4095;
+float r_x = 0.0, resolucao = 4095, r_comercial;
 ssd1306_t ssd;
 float tensao;
 //Armazena os valores numa string:
-char str_x[5];
-char str_y[5];
+char str_y[7];
+char str_comercial[7];
+const float e24[]={
+    10,11,12,13,15,16,18,20,22,24,27,30,33,36,39,43,47,51,56,62,68,75,82,91
+};
+
+const int e24_num = sizeof(e24) / sizeof(e24[0]); //24 elementos, se eu quiser trocar de série fica mais fácil de trocar.
 
 //Protótipos das funções:
 void gpio_irq_handler(uint gpio, uint32_t events);
 void setup();
 void i2c_setup();
+float valor_comerc(float r_x);
+void formatar_comerc(float valor, char *str_comercial);
 
 
 int main()
@@ -58,29 +66,47 @@ int main()
         }
         media = soma / 500.0f;
         //Formula para calcular o valor de r_x (resistor desconhecido):
-        r_x = (r_conhecido*media) / (resolucao - media);
+        
+        r_x = (r_conhecido*media) / (resolucao - media); //Valor real
+        
+        if(r_x>(1000*100)+1000){ //Máximo de 100k 
+            r_x = 0.0f;
+            
+        }
+         if(r_x<510){ //minimo de 510
+            r_x=0.0f;
+            
+        }
 
-        sprintf(str_x, "%1.0f", media); //Converte o valor inteiro e armazena numa string
-        sprintf(str_y, "%1.0f", r_x);
+        r_comercial = valor_comerc(r_x); //Valor comercial
+
+        formatar_comerc(r_comercial,str_comercial);
+
+        sprintf(str_y, "%1.0f", r_x); //Transforma o resultado numa string
+        
         
         //Estrutura do display:
-        ssd1306_rect(&ssd,0,0,124,62,true,false);
-        ssd1306_send_data(&ssd);
+        ssd1306_fill(&ssd,false);
+        ssd1306_rect(&ssd,0,0,125,62,true,false);
         ssd1306_draw_string(&ssd,"Ohmimetro",27,2);
         ssd1306_hline(&ssd,1,124,10,true);
         ssd1306_draw_string(&ssd,"Real:",2,12);
         ssd1306_draw_string(&ssd,str_y,43,12);
-        ssd1306_draw_string(&ssd,"Ohms",77,12);
         ssd1306_draw_string(&ssd,"Comerc:",2,22);
+        ssd1306_draw_string(&ssd,str_comercial,58,22);
+        ssd1306_send_data(&ssd);
+        
         //DEFINIR O CALCULO PARA O COMERCIAL
     }
 }
+
 //Campo das funções:
 void setup(){
     gpio_init(botao_a);
     gpio_set_dir(botao_a,GPIO_IN);
     gpio_pull_up(botao_a);
 }
+
 void i2c_setup(){
     //Configura a comunicação I²C
     i2c_init(i2c_port, 400*1000); //Inicializa o I²C com 400KHz  
@@ -94,11 +120,48 @@ void i2c_setup(){
     ssd1306_config(&ssd);
     ssd1306_send_data(&ssd);
 
+}
 
-
-
+float valor_comerc(float r_x){
+    float menor_dif = 1e9; // 1e9 = 1*10^9
+    float mais_proximo = 0;
+    if(r_x!=0){
+        for(int i = 2; i<=5; i++){ // se i = 2, entao 10^2 = 100 e vai até 10^5 = 100k
+            //calcula o fator, se é 100, 1000, 10000, 100000
+            float fator = powf(10,i);
+    
+            for(int j = 0; j<e24_num;j++){ //Faz a busca do valor comercial
+                
+                float valor_candidato = e24[j] * fator; // multiplica cada valor da serie E24 pelo fator
+                if(valor_candidato < 510.0f || valor_candidato > 100000.0f) continue; //Se não estiver nessa faixa, pula para próxima verificação
+                
+                float dif = fabsf(r_x - valor_candidato); //Retorna o valor absoluto da diferença entre o valor real e o valor candidato
+    
+                if(dif < menor_dif){
+                    menor_dif = dif;
+                    mais_proximo = valor_candidato; //Vai se aproximando cada vez mais do valor comercial
+                }
+            }
+        }
+    }
+    else{
+        mais_proximo=0;
+    }
+    
+    return mais_proximo;
 
 }
+
+void formatar_comerc(float valor, char *str_comercial){
+    if(valor>=1000.0f){
+        sprintf(str_comercial,"%.0fk",valor/1000.0f); // Transformar 1000 em 1k
+
+    }
+    else{
+        sprintf(str_comercial,"%.0f", valor);
+    }
+}
+
 void gpio_irq_handler(uint gpio, uint32_t events){ 
     reset_usb_boot(0, 0);
 }
