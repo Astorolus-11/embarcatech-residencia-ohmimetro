@@ -173,7 +173,7 @@ float valor_comerc(float r_x){
 
 void formatar_comerc(float valor, char *str_comercial){
     if(valor>=1000.0f){
-        sprintf(str_comercial,"%.0fk",valor/1000.0f); // Transformar 1000 em 1k
+        sprintf(str_comercial,"%.1fk",valor/1000.0f); // Transformar 1000 em 1k
 
     }
     else{
