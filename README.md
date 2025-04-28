@@ -63,7 +63,7 @@ Os componentes utilizados presentes na placa foram:
 
 ## 6. Vídeo de demonstração
 
-
+https://www.dropbox.com/scl/fi/m9cvpdek0jns5eu76hf5k/Ohm-metro-BitDogLab-Feito-com-o-Clipchamp.mp4?rlkey=bnqqoy6xv0iqw1ck2431hzohn&st=7i0u6ceb&dl=0
 
 
    
