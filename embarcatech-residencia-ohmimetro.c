@@ -8,13 +8,13 @@
 #include "ssd1306.h"
 #include "font.h"
 #include "pico/bootrom.h"
-#include "hardware/pio.h"
 #include "hardware/clocks.h"
+#include "string.h"
 
 //Variáveis globais:
 #define i2c_port i2c1 
 const uint SDA = 14, SCL = 15, endereco = 0x3C;
-const uint adc_omh = 28, botao_a = 5, pin_matriz = 7;
+const uint adc_omh = 28, botao_a = 5;
 int r_conhecido = 10000;
 float r_x = 0.0, resolucao = 4095, r_comercial;
 ssd1306_t ssd;
@@ -25,7 +25,7 @@ char str_comercial[7];
 const float e24[]={
     10,11,12,13,15,16,18,20,22,24,27,30,33,36,39,43,47,51,56,62,68,75,82,91
 };
-
+char faixa_1[4],faixa_2[4],multiplicador[4],tolerancia[4];
 const int e24_num = sizeof(e24) / sizeof(e24[0]); //24 elementos, se eu quiser trocar de série fica mais fácil de trocar.
 
 //Protótipos das funções:
@@ -34,6 +34,8 @@ void setup();
 void i2c_setup();
 float valor_comerc(float r_x);
 void formatar_comerc(float valor, char *str_comercial);
+void cores(char *faixa_1, char *faixa_2 , char *multiplicador, char * tolerancia);
+
 
 
 int main()
@@ -41,7 +43,6 @@ int main()
     stdio_init_all();
     setup();
     i2c_setup();
-
 
     //Interrupção para o modo bootsel:
     gpio_set_irq_enabled_with_callback(botao_a, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
@@ -80,12 +81,16 @@ int main()
 
         r_comercial = valor_comerc(r_x); //Valor comercial
 
+        cores(faixa_1,faixa_2,multiplicador,tolerancia);
+
         formatar_comerc(r_comercial,str_comercial);
+
+        
 
         sprintf(str_y, "%1.0f", r_x); //Transforma o resultado numa string
         
         
-        //Estrutura do display:
+        //Estrutura do display: (Título, valor real e valor comercial)
         ssd1306_fill(&ssd,false);
         ssd1306_rect(&ssd,0,0,125,62,true,false);
         ssd1306_draw_string(&ssd,"Ohmimetro",27,2);
@@ -94,9 +99,23 @@ int main()
         ssd1306_draw_string(&ssd,str_y,43,12);
         ssd1306_draw_string(&ssd,"Comerc:",2,22);
         ssd1306_draw_string(&ssd,str_comercial,58,22);
-        ssd1306_send_data(&ssd);
         
-        //DEFINIR O CALCULO PARA O COMERCIAL
+        //Cores do resistor:
+        ssd1306_draw_string(&ssd,"Cores",42,32);
+        if(r_comercial!=0){
+        ssd1306_draw_string(&ssd,faixa_1,9,45);
+        ssd1306_draw_string(&ssd,faixa_2,36,45);
+        ssd1306_draw_string(&ssd,multiplicador,63,45);
+        ssd1306_draw_string(&ssd,tolerancia,91,45);
+
+        }
+        else{
+            ssd1306_rect(&ssd,45,9,100,15,false,true);
+        }
+        
+        printf("%.0f\n",r_comercial);
+
+        ssd1306_send_data(&ssd);
     }
 }
 
@@ -161,6 +180,41 @@ void formatar_comerc(float valor, char *str_comercial){
         sprintf(str_comercial,"%.0f", valor);
     }
 }
+
+void cores(char *faixa_1, char *faixa_2 , char *multiplicador, char * tolerancia){
+    int valor = (int)(r_comercial + 0.5f); // Arredonda o valor comercial
+    int digito_1, digito_2, mult = 0;
+
+    // Reduz até ficar com dois dígitos significativos:
+    while (valor >= 100) {
+        valor /= 10;
+        mult++;
+    }
+
+    digito_1 = valor / 10;
+    digito_2 = valor % 10;
+
+    const char *cores[] = {
+        "Prt", "Mrm", "Vrm", "Lrj", "Amr", "Vrd", "Azl", "Vio", "Cin", "Bra"
+    };
+
+    strcpy(faixa_1, cores[digito_1]);
+    strcpy(faixa_2, cores[digito_2]);
+
+    const char *multiplicadores[] = {
+        "Prt", "Mrm", "Vrm", "Lrj", "Amr", "Vrd", "Azl"
+    };
+
+    if (mult >= 0 && mult <= 6) {
+        strcpy(multiplicador, multiplicadores[mult]);
+    } 
+
+    strcpy(tolerancia, "Drd"); // 5% , Resistores da série E24
+}
+
+
+    
+
 
 void gpio_irq_handler(uint gpio, uint32_t events){ 
     reset_usb_boot(0, 0);
